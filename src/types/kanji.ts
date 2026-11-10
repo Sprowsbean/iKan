@@ -25,4 +25,14 @@ export interface KanjiCard {
   /** missing from an older backend */
   hiragana?: string;
   chars?: CharInfo[];
+  /** the word in modern forms when it was printed in old ones (戰爭 -> 戦争) */
+  modern?: string;
+  /** kanji the reader was unsure of, with the other characters it considered */
+  unsure?: UnsureChar[];
+}
+
+export interface UnsureChar {
+  char: string;
+  conf: number;
+  alternatives: string[];
 }

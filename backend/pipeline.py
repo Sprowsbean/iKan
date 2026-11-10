@@ -3,6 +3,7 @@ import importlib
 import os
 
 from jp import HIRA
+from postprocess import candidates, furigana
 from postprocess.filters import is_junk, keep_char
 from postprocess.lookalike import fix_lookalikes
 from preprocess import orient, scale
@@ -15,6 +16,10 @@ OPTIONS: dict[str, str] = {
     "upscale": "0",       # re-read small text at 2x (preprocess/scale.py)
     "tiles": "0",         # also read big photos in 2x2 overlapping tiles (preprocess/scale.py)
     "orient": "0",        # 0 | always | check | retry: turn sideways / upside-down photos upright (preprocess/orient.py)
+    "furigana": "0",      # small kana beside/above a kanji line = a reading, not text (postprocess/furigana.py)
+    "correct": "0",       # unsure kanji -> recognizer alternate / look-alike, if JMdict agrees (candidates.py)
+    "variants": "0",      # old forms (戰) get their modern form (戦) on the card (postprocess/variants.py)
+    "unsure": "0",        # cards list the characters the reader was unsure of, with alternatives
 }
 OPTIONS.update({k: os.environ[f"IKAN_{k.upper()}"] for k in OPTIONS if f"IKAN_{k.upper()}" in os.environ})
 
@@ -46,33 +51,65 @@ def segments(img):
     return segs
 
 
-def ocr_lines(img) -> list[str]:
-    texts = []
-    for seg in segments(img):
+# A line of text with its characters: (text, [{"char", "conf", "alts"?, "was"?}, ...]), one entry per character,
+# so the cards can say which characters the reader was unsure of.
+Line = tuple[str, list[dict]]
+LAST_HINTS: list[tuple[str, str]] = []  # furigana removed from the last image read: (reading, base line)
+
+
+def ocr_detail(img) -> list[Line]:
+    segs = segments(img)
+    LAST_HINTS.clear()
+    if on("furigana"):
+        segs, hints = furigana.split(segs)
+        LAST_HINTS.extend(hints)
+    pieces: list[Line] = []
+    for seg in segs:
         if on("filters") and is_junk(seg):
             continue
+        if on("correct"):
+            seg = candidates.correct(seg)
         # drop an unsure kanji and break the line there, so its neighbours don't glue into a fake word
-        text = "".join(c["char"] if not on("filters") or keep_char(c, seg) else " " for c in seg)
-        texts += [fix_lookalikes(t) for t in text.split() if t]
+        run: list[dict] = []
+        for c in seg + [None]:
+            if c is None or c["char"].isspace() or (on("filters") and not keep_char(c, seg)):
+                if run:
+                    text = fix_lookalikes("".join(x["char"] for x in run))
+                    pieces.append((text, [{**x, "char": ch} for x, ch in zip(run, text)]))
+                run = []
+            else:
+                run.append(c)
     # the lower threshold yields overlapping boxes ("焼き魚定食" inside "焼き魚定食八百円"): keep the longer
-    return [t for t in dict.fromkeys(texts) if not any(t != u and t in u for u in texts)]
+    first = {}
+    for text, chars in pieces:
+        first.setdefault(text, chars)
+    return [(t, cs) for t, cs in first.items() if not any(t != u and t in u for u in first)]
+
+
+def ocr_lines(img) -> list[str]:
+    return [t for t, _ in ocr_detail(img)]
 
 
 SENTENCE_END = tuple("。！？!?」』）)")
 
 
-def join_wrapped(lines: list[str]) -> list[str]:
+def join_wrapped(lines: list[Line]) -> list[Line]:
     """Rejoin a sentence wrapped mid-word (最近の子供たちは夜更 / かしです。 -> ...夜更かしです。).
     A line that starts with hiragana continues the previous one: a new item or sentence almost never does."""
-    out: list[str] = []
-    for line in lines:
-        if out and HIRA.match(line) and not out[-1].endswith(SENTENCE_END):
-            out[-1] += line
+    out: list[Line] = []
+    for text, chars in lines:
+        if out and HIRA.match(text) and not out[-1][0].endswith(SENTENCE_END):
+            out[-1] = (out[-1][0] + text, out[-1][1] + chars)
         else:
-            out.append(line)
+            out.append((text, chars))
     return out
+
+
+def read_detail(img) -> list[Line]:
+    """BGR image -> the text lines the cards are made from, each with its characters' confidence."""
+    return join_wrapped(ocr_detail(img))
 
 
 def read_lines(img) -> list[str]:
     """BGR image -> the text lines the cards are made from."""
-    return join_wrapped(ocr_lines(img))
+    return [t for t, _ in read_detail(img)]

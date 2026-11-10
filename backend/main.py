@@ -13,8 +13,11 @@ import numpy as np
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 
-from cards import cards_for
-from pipeline import read_lines
+from cards import cards_for, glosses
+from jp import KANJI
+from pipeline import LAST_HINTS, on, read_detail
+from postprocess import variants
+from postprocess.candidates import LOW_CONF
 
 app = FastAPI(title="Kanji OCR")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -33,5 +36,46 @@ async def analyze(file: UploadFile = File(...)):
 
 def analyze_image(img) -> dict:
     """BGR image -> {"text": OCR text, "cards": [KanjiCard, ...]} (cards may be empty)."""
-    lines = read_lines(img)
-    return {"text": "\n".join(lines), "cards": cards_for(lines)}
+    detail = read_detail(img)
+    lines = [t for t, _ in detail]
+    cards = cards_for(lines)
+    if on("variants"):
+        add_modern_forms(cards)
+    if on("unsure"):
+        mark_unsure(cards, detail)
+    out = {"text": "\n".join(lines), "cards": cards}
+    if LAST_HINTS:
+        out["furigana"] = [{"reading": r, "line": b} for r, b in LAST_HINTS]
+    return out
+
+
+def add_modern_forms(cards: list[dict]) -> None:
+    """A word printed in old forms (戰爭) also gets its modern form (戦争) and, if needed, that word's meaning."""
+    for card in cards:
+        new = variants.modern(card["kanji"])
+        if new != card["kanji"]:
+            card["modern"] = new
+            if card["meaning"] in ("(no entry)", "") or card["meaning"].startswith(card["kanji"][0] + " ("):
+                card["meaning"] = glosses(new, card["hiragana"]) or card["meaning"]
+
+
+def mark_unsure(cards: list[dict], detail) -> None:
+    """Say which kanji in a card's word the reader was unsure of, with the alternatives it considered:
+    on real photos a character under LOW_CONF is right less than 14% of the time (eval/BASELINE.md)."""
+    for card in cards:
+        stem = "".join(ch for ch in card["kanji"] if KANJI.match(ch))  # 食べる is printed 食べた: find 食
+        for text, chars in detail:
+            word = card["kanji"] if card["kanji"] in text else stem
+            i = text.find(word) if word else -1
+            if i < 0:
+                continue
+            unsure = []
+            for c in chars[i:i + len(word)]:
+                if KANJI.match(c["char"]) and (c["conf"] < LOW_CONF or "was" in c):
+                    alts = [a["char"] for a in c.get("alts", []) if a["char"] != c["char"] and KANJI.match(a["char"])]
+                    if "was" in c:
+                        alts = [c["was"]] + [a for a in alts if a != c["was"]]
+                    unsure.append({"char": c["char"], "conf": round(c["conf"], 2), "alternatives": alts[:3]})
+            if unsure:
+                card["unsure"] = unsure
+            break

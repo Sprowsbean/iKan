@@ -17,6 +17,9 @@ const sentence = (context: string) => context.replace(/^Found in: 「(.*)」/, '
 
 export function KanjiFlashcard({ card, selected, onPickKanji, onOpen }: KanjiFlashcardProps) {
   const kanji = [...new Set([...card.kanji].filter(isKanji))];
+  const unsure = new Set((card.unsure ?? []).map((u) => u.char));
+  // dotted underline = the reader wasn't sure of this character
+  const mark = (ch: string) => (unsure.has(ch) ? 'underline decoration-dotted decoration-2 underline-offset-8' : '');
 
   return (
     <div
@@ -32,7 +35,7 @@ export function KanjiFlashcard({ card, selected, onPickKanji, onOpen }: KanjiFla
                 <button
                   key={i}
                   onClick={(e) => { e.stopPropagation(); onPickKanji(ch); }}
-                  className={`rounded-md transition-colors ${
+                  className={`rounded-md transition-colors ${mark(ch)} ${
                     ch === selected ? 'bg-matcha-badge' : 'hover:bg-matcha-tint'
                   }`}
                   title={`Words with ${ch}`}
@@ -40,7 +43,7 @@ export function KanjiFlashcard({ card, selected, onPickKanji, onOpen }: KanjiFla
                   {ch}
                 </button>
               ) : (
-                <span key={i}>{ch}</span>
+                <span key={i} className={mark(ch)}>{ch}</span>
               )
             )}
           </div>
@@ -55,6 +58,17 @@ export function KanjiFlashcard({ card, selected, onPickKanji, onOpen }: KanjiFla
         {card.hiragana ? `${card.hiragana} · ${card.romaji}` : card.readings}
       </p>
       <p className="mt-0.5 text-[15px] text-matcha-muted">{card.meaning}</p>
+      {card.modern && (
+        <p className="mt-1 text-sm text-matcha-muted">
+          Modern form: <span className="font-kanji font-semibold text-matcha-text">{card.modern}</span> (printed in old forms)
+        </p>
+      )}
+      {card.unsure?.map((u) => (
+        <p key={u.char} className="mt-1 text-sm text-matcha-muted">
+          Not sure about <span className="font-kanji font-semibold text-matcha-text">{u.char}</span>
+          {u.alternatives.length > 0 && <>: maybe <span className="font-kanji">{u.alternatives.join(' / ')}</span></>}
+        </p>
+      ))}
 
       {card.context && (
         <p className="mt-3 bg-matcha-tint rounded-[10px] px-3 py-2.5 text-sm text-matcha-muted font-kanji">

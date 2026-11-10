@@ -183,4 +183,6 @@ evidence for each step: [docs/OCR_ROADMAP.md](docs/OCR_ROADMAP.md).
   [KANJIDIC2](https://www.edrdg.org/wiki/index.php/KANJIDIC_Project). Both are © the Electronic Dictionary
   Research and Development Group, used under the
   [EDRDG licence](https://www.edrdg.org/edrdg/licence.html).
+- **Look-alike kanji** (`backend/data/kanji_lookalikes.tsv`, used by the experimental correction step): derived
+  from Lars Yencken's [kanji confusion sets](https://lars.yencken.org/datasets/kanji-confusion), CC BY 3.0.
 - **Runtime and frameworks:** onnxruntime-web (MIT), FastAPI, Gradio, React.
