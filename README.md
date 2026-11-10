@@ -82,8 +82,9 @@ Phone browser (React + Vite + Tailwind)
   Camera / upload -> scanner (on the phone): find page or text, straighten, crop
         |  POST /analyze (the cropped photo)
         v
-Backend on a Hugging Face Space (FastAPI, backend/main.py)
-  1. meikiocr   : image -> lines of Japanese text (horizontal, vertical, rotated photos)
+Backend on a Hugging Face Space (FastAPI, backend/main.py -> pipeline.py -> cards.py)
+  1. meikiocr   : image -> lines of Japanese text (horizontal, vertical, rotated photos)   engines/meiki.py
+     clean-up   : drop fake kanji from textures/icons, fix カ/力-type look-alikes           postprocess/
   2. SudachiPy  : text -> words, with reading and dictionary form (今日 = きょう, 食べた -> 食べる)
   3. pykakasi   : reading -> romaji
   4. jamdict    : JMdict (word meaning) + KANJIDIC2 (each kanji: meaning, on/kun, level)
@@ -128,7 +129,7 @@ npm run dev:phone    # https on your Wi-Fi, to test on a phone (see below)
 
 | Part | Free host | Notes |
 |---|---|---|
-| Backend | **Hugging Face Space**, SDK = Gradio, free hardware | It needs about 1 GB of RAM. `deploy_space.py` uploads `app.py`, `main.py` and `requirements-space.txt`. To update only the code, upload `main.py` in the Space's Files tab. |
+| Backend | **Hugging Face Space**, SDK = Gradio, free hardware | It needs about 1 GB of RAM. `deploy_space.py` uploads `app.py`, the backend modules (`main.py`, `pipeline.py`, `cards.py`, `jp.py`, `engines/`, `postprocess/`) and `requirements-space.txt`. Uploading only `main.py` in the Space's Files tab is no longer enough. |
 | Frontend | **Render static site** (`render.yaml`) | Build `npm ci && npm run build`, publish `dist`, set `VITE_API_URL=https://<user>-<space>.hf.space`. It redeploys on every push. |
 
 1. **Backend:** run `hf auth login` (a *write* token, pasted in your own terminal). Then run

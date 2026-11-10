@@ -14,8 +14,10 @@ from pathlib import Path
 
 from huggingface_hub import HfApi, hf_hub_download
 
-# local file -> path in the Space (nothing else: no venv, no experiments)
-FILES = {"app.py": "app.py", "main.py": "main.py", "requirements-space.txt": "requirements.txt"}
+# what the Space runs: the app's modules and folders (nothing else: no venv, no eval, no experiments).
+# Since the backend was split into modules, uploading main.py alone in the Space's web page is not enough.
+CODE = ["app.py", "main.py", "pipeline.py", "cards.py", "jp.py", "engines/*.py", "postprocess/*.py"]
+REQUIREMENTS = {"requirements-space.txt": "requirements.txt"}
 ABOUT = """
 Backend for the Kanji Interpreter app: `POST /analyze` with a photo (multipart field `file`) returns the kanji
 words found, with readings, romaji, meanings and JLPT level. The page here is a test form for the same thing.
@@ -50,7 +52,8 @@ repo_id = f"{user}/{name}"
 api.create_repo(repo_id, repo_type="space", space_sdk="gradio", private=False, exist_ok=True)
 here = Path(__file__).parent
 readme = front_matter(repo_id, api) + ABOUT
-for local, remote in FILES.items():
+files = {p.relative_to(here).as_posix(): p.relative_to(here).as_posix() for pat in CODE for p in sorted(here.glob(pat))}
+for local, remote in {**files, **REQUIREMENTS}.items():
     api.upload_file(path_or_fileobj=here / local, path_in_repo=remote, repo_id=repo_id, repo_type="space")
 api.upload_file(path_or_fileobj=readme.encode(), path_in_repo="README.md", repo_id=repo_id, repo_type="space")
 host = repo_id.replace("/", "-").replace("_", "-").replace(".", "-").lower()

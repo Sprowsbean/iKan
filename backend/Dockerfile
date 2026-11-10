@@ -12,7 +12,9 @@ WORKDIR /home/user/app
 
 COPY --chown=user requirements.txt .
 RUN pip install --no-cache-dir --user -r requirements.txt
-COPY --chown=user main.py .
+COPY --chown=user *.py ./
+COPY --chown=user engines ./engines
+COPY --chown=user postprocess ./postprocess
 # Pre-download OCR models at build time so cold starts are fast
 RUN python -c "from meikiocr import MeikiOCR; MeikiOCR()"
 EXPOSE 7860
