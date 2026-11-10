@@ -24,6 +24,11 @@ most 2400 px, plus the small-crop margin from `CropView.tsx`). The test sets are
 - **fake kanji:** kanji runs in the output that are not in the reference.
 - **s:** seconds per image on 2 cores, with the models already loaded.
 
+**Checked again after splitting `main.py` into modules (commit d51fb11):** `run_eval.py --compare baseline split`
+gives 746 of 746 images with identical text, cards and errors, and every accuracy column above is unchanged. The
+median seconds differed between the two runs by up to 1.7× (in both directions) because of load on the PC. Compare
+timings only between runs made back to back.
+
 ## Recognizer confidence vs correctness
 
 Each raw character meikiocr returned on `jaw_lines` (before our filters), matched against the reference

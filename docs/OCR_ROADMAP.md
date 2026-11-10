@@ -11,7 +11,37 @@ Four research passes (November 2026) looked for free, CPU-only ways to get clear
 the compiled result, written as a build brief: what to do, in which order, with the evidence for each step.
 The full notes with sources are kept outside the repo, in `research_notes/Free OCR accuracy improvements/`
 next to the project folder (`preprocessing.md`, `ocr_models.md`, `post_correction.md`, `pipeline_practices.md`).
-Nothing here is built yet.
+## Progress
+
+Work happens on the branch `ocr-accuracy`, one phase per commit. Nothing from it is deployed yet; the live app
+still runs the code from `main`.
+
+| Step | Status | Result |
+|---|---|---|
+| Phase 0: measurement | done (commit 3414dc9) | `backend/eval/run_eval.py`, 4 test sets, baseline in [backend/eval/BASELINE.md](../backend/eval/BASELINE.md) |
+| Split `main.py` into modules | done (commit d51fb11) | 746 of 746 test images give identical text, cards and errors |
+| Phase 1: better input | next, waiting for review | |
+| Phases 2–4 | not started | |
+
+What the baseline showed, to keep in mind for the next phases:
+
+- About 60% of kanji words are found on real photos (JaWildText and our own), against 98.5% on synthetic.
+  Progress has to show up on the real sets.
+- Whole photos take 26–33 s median and up to about 3 minutes on 2 cores. Speed is a goal too, and timings
+  must be compared between runs made back to back (medians moved by up to 1.7× between two runs of
+  identical code, because of load on the PC).
+- Recognizer confidence ranks errors (below 0.5 is almost always wrong) but is overconfident (above 0.9 is
+  still wrong 1 time in 4). A low-confidence gate is usable; "high confidence = correct" is not.
+- 87 of 500 line crops return no text at all.
+
+Open questions to reflect on before Phase 1:
+
+- Should speed come first? A 30 s scan on the free Space may matter more to users than a few points of
+  accuracy, and Phase 1 tiling would make photos slower still.
+- Why do 87 line crops return nothing (detector misses on tight crops, or filters removing real text)?
+  Looking at the per-image results in `backend/eval/results/` would answer this without tuning on them.
+- After deploying this branch, the Space has to be updated with `deploy_space.py`. Uploading only `main.py`
+  no longer works.
 
 ## Rules that bound every step
 
