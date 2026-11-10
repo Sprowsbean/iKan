@@ -48,13 +48,16 @@ CONF_BINS = (0.0, 0.3, 0.5, 0.7, 0.9, 1.01)
 
 
 def use_two_cores() -> None:
-    """The free Hugging Face Space has 2 vCPUs; pin this process to 2 cores so timings are comparable."""
+    """The free Hugging Face Space has 2 vCPUs; pin this process to 2 cores so timings are comparable.
+    EVAL_CORES=4,5 picks other cores, so several runs can go side by side without sharing cores."""
+    cores = [int(c) for c in os.environ.get("EVAL_CORES", "0,1").split(",")]
+    os.environ.setdefault("OCR_THREADS", str(len(cores)))  # engines that take a thread count use this many
     try:
         if hasattr(os, "sched_setaffinity"):
-            os.sched_setaffinity(0, {0, 1})
+            os.sched_setaffinity(0, set(cores))
         elif os.name == "nt":
             k = ctypes.windll.kernel32
-            k.SetProcessAffinityMask(k.GetCurrentProcess(), 0b11)
+            k.SetProcessAffinityMask(k.GetCurrentProcess(), sum(1 << c for c in cores))
     except Exception as e:  # timings are then for all cores; say so rather than fail
         print(f"warning: could not pin to 2 cores ({e})")
 
@@ -137,26 +140,18 @@ def score(ref: dict, text: str) -> dict:
 
 # ---------- hooks into the pipeline ----------
 
-def raw_reader():
-    """The module whose _oriented_pass the pipeline calls (main.py now; engines/meiki.py after the split)."""
-    try:
-        import engines.meiki as mod  # noqa: F401
-    except ImportError:
-        import main as mod
-    return mod
-
-
 def capture_segments():
-    """Wrap the raw OCR pass so each image's characters and confidences can be checked against the reference."""
-    mod = raw_reader()
-    original, seen = mod._oriented_pass, []
+    """Wrap the engine's raw reading so each image's characters and confidences can be checked against the
+    reference (pipeline.segments: the selected engine, before any clean-up)."""
+    import pipeline
+    original, seen = pipeline.segments, []
 
     def wrapped(img):
         segs = original(img)
         seen.append(segs)
         return segs
 
-    mod._oriented_pass = wrapped
+    pipeline.segments = wrapped
     return seen
 
 
@@ -186,12 +181,16 @@ def calibration(pairs: list[tuple[list, str]]) -> list[tuple[str, int, float]]:
 
 # ---------- run, summarize, compare ----------
 
-def run(label: str, names: list[str], limit: int | None) -> None:
+def run(label: str, names: list[str], limit: int | None, opts: list[str]) -> None:
     use_two_cores()
     sys.path.insert(0, str(BACKEND))
     os.chdir(BACKEND)
     import cv2
     import main
+    import pipeline
+    for o in opts:
+        k, _, v = o.partition("=")
+        pipeline.OPTIONS[k] = v
     seen = capture_segments()
     items = load_sets(names)
     out = RESULTS / label
@@ -219,7 +218,7 @@ def run(label: str, names: list[str], limit: int | None) -> None:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
             records.append(rec)
             print(f"{set_name:10} {len(records):4}  {dt:5.2f}s  {path.name[:40]}", flush=True)
-    summary = summarize(records, cal)
+    summary = f"Options: {json.dumps(pipeline.OPTIONS)}\n\n" + summarize(records, cal)
     (out / "summary.md").write_text(summary, encoding="utf-8")
     print("\n" + summary)
 
@@ -268,9 +267,11 @@ if __name__ == "__main__":
     ap.add_argument("--label", default="run")
     ap.add_argument("--sets", default=",".join(SETS))
     ap.add_argument("--limit", type=int, help="at most this many images per set (quick checks)")
+    ap.add_argument("--opt", action="append", default=[], metavar="KEY=VALUE",
+                    help="pipeline option (pipeline.OPTIONS), e.g. --opt engine=paddle_v6; repeatable")
     ap.add_argument("--compare", nargs=2, metavar=("LABEL_A", "LABEL_B"))
     a = ap.parse_args()
     if a.compare:
         compare(*a.compare)
     else:
-        run(a.label, [s for s in a.sets.split(",") if s], a.limit)
+        run(a.label, [s for s in a.sets.split(",") if s], a.limit, a.opt)

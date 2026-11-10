@@ -21,6 +21,31 @@ const DOC_EVERY_MS = 250;   // scanic's ML detector: ~20 ms per frame on a PC
 const TEXT_EVERY_MS = 900;  // the text detector is heavier (~0.4 s on a PC), so less often
 const LOST_AFTER = 3;       // misses in a row before a shown border disappears (stops flicker)
 const GUIDE: Box = { x: 0.08, y: 0.25, w: 0.84, h: 0.5 }; // shown when nothing is found yet
+// OCR recognizers read text lines at about 48 px high; characters under half that in the camera frame read
+// poorly (backend/eval: the lowest-resolution quarter of real text lines read 26% right, the best 80%)
+const SMALL_TEXT_PX = 24;
+
+// ImageCapture (full-resolution still photos) is in Chrome/Android but not in TypeScript's DOM types
+type PhotoCapture = { takePhoto(): Promise<Blob> };
+type PhotoCaptureCtor = new (track: MediaStreamTrack) => PhotoCapture;
+
+/** A full-resolution still from the camera, when the browser offers it and it shows the same view as the
+ *  video (same shape), so the page outline / text box found live still fit. Otherwise null. */
+async function fullResPhoto(stream: MediaStream | null, vw: number, vh: number) {
+  const Ctor = (window as unknown as { ImageCapture?: PhotoCaptureCtor }).ImageCapture;
+  const track = stream?.getVideoTracks()[0];
+  if (!Ctor || !track) return null;
+  try {
+    const blob = await new Ctor(track).takePhoto();
+    const bmp = await createImageBitmap(blob); // applies the photo's EXIF rotation, like CropView's <img>
+    const { width: w, height: h } = bmp;
+    bmp.close();
+    if (w <= vw || Math.abs(w / h - vw / vh) > 0.02 * (vw / vh)) return null;
+    return { blob, scale: w / vw };
+  } catch {
+    return null; // iOS Safari and others: no ImageCapture or takePhoto fails; use the video frame
+  }
+}
 
 export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -109,21 +134,37 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
     return () => { stopped = true; clearInterval(docTimer); clearInterval(textTimer); };
   }, []);
 
-  const capturePhoto = () => {
-    if (!videoRef.current || !canvasRef.current) return;
+  const busyRef = useRef(false);
+  const capturePhoto = async () => {
+    if (!videoRef.current || !canvasRef.current || busyRef.current) return;
 
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const context = canvas.getContext('2d');
 
     if (!context) return;
+    busyRef.current = true;
+    const seen = foundRef.current;
+
+    // Prefer the camera's full-resolution photo (often 2-4x the video's pixels: small text stays readable)
+    const full = await fullResPhoto(streamRef.current, video.videoWidth, video.videoHeight);
+    if (full) {
+      const s = full.scale, d0 = seen.doc;
+      const at = (p: { x: number; y: number }) => ({ x: p.x * s, y: p.y * s });
+      const doc = d0 && { topLeft: at(d0.topLeft), topRight: at(d0.topRight),
+                          bottomRight: at(d0.bottomRight), bottomLeft: at(d0.bottomLeft) };
+      stopCamera();
+      onCapture(new File([full.blob], 'camera-capture.jpg', { type: full.blob.type || 'image/jpeg' }),
+        { doc, text: seen.text });
+      return;
+    }
 
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
     context.drawImage(video, 0, 0);
-    const seen = foundRef.current;
 
     canvas.toBlob((blob) => {
+      busyRef.current = false;
       if (blob) {
         const file = new File([blob], 'camera-capture.jpg', { type: 'image/jpeg' });
         stopCamera();
@@ -144,7 +185,9 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const d = found.doc;
   const pts = d ? [d.topLeft, d.topRight, d.bottomRight, d.bottomLeft].map((p) => px(p.x, p.y)).join(' ')
                 : fr(found.text ?? GUIDE);
+  const small = !d && found.text?.charPx !== undefined && found.text.charPx < SMALL_TEXT_PX;
   const hint = d ? 'Page found: hold still and tap the button'
+             : small ? 'The text is small: move closer for a better read'
              : found.text ? 'Text found: tap the button, you can adjust the box next'
              : 'Center the text you want to scan';
 

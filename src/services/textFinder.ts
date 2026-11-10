@@ -5,7 +5,8 @@
 import type * as Ort from 'onnxruntime-web';
 
 /** rectangle in fractions of the image (0..1) */
-export interface Box { x: number; y: number; w: number; h: number }
+/** a region as fractions of the image; charPx (text regions only) = median character size in source pixels */
+export interface Box { x: number; y: number; w: number; h: number; charPx?: number }
 /** a detected text box in image pixels */
 export interface TextBox { x1: number; y1: number; x2: number; y2: number; score: number }
 
@@ -158,8 +159,9 @@ export function textRegion(boxes: TextBox[], w: number, h: number): Box | null {
     }
   }
   const sizes = [...used].map(size).sort((a, b) => a - b);
-  const pad = 0.5 * sizes[sizes.length >> 1]; // a little margin so edge characters aren't clipped
+  const charPx = sizes[sizes.length >> 1];
+  const pad = 0.5 * charPx; // a little margin so edge characters aren't clipped
   const x1 = Math.max(0, r.x1 - pad), y1 = Math.max(0, r.y1 - pad);
   const x2 = Math.min(w, r.x2 + pad), y2 = Math.min(h, r.y2 + pad);
-  return { x: x1 / w, y: y1 / h, w: (x2 - x1) / w, h: (y2 - y1) / h };
+  return { x: x1 / w, y: y1 / h, w: (x2 - x1) / w, h: (y2 - y1) / h, charPx };
 }
