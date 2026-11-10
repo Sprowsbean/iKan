@@ -5,15 +5,16 @@ import os
 from jp import HIRA
 from postprocess.filters import is_junk, keep_char
 from postprocess.lookalike import fix_lookalikes
-from preprocess import scale
+from preprocess import orient, scale
 
 # Pipeline switches, so each step can be measured on its own (eval/run_eval.py --opt key=value).
 # The defaults are what the app runs. Environment variables IKAN_<KEY> override them (e.g. IKAN_ENGINE).
 OPTIONS: dict[str, str] = {
-    "engine": "meiki",    # engines/<name>.py
+    "engine": "meiki",    # meiki | paddle_v6 | ndl_lite (engines/)
     "filters": "1",       # fake-kanji filters (postprocess/filters.py); tuned on meikiocr's confidences
     "upscale": "0",       # re-read small text at 2x (preprocess/scale.py)
     "tiles": "0",         # also read big photos in 2x2 overlapping tiles (preprocess/scale.py)
+    "orient": "0",        # 0 | always | check | retry: turn sideways / upside-down photos upright (preprocess/orient.py)
 }
 OPTIONS.update({k: os.environ[f"IKAN_{k.upper()}"] for k in OPTIONS if f"IKAN_{k.upper()}" in os.environ})
 
@@ -26,7 +27,18 @@ def segments(img):
     """The selected engine's raw reading (lines of characters with confidence and box), with the
     optional text-size steps."""
     read = importlib.import_module(f"engines.{OPTIONS['engine']}").read
+    turn = OPTIONS.get("orient", "0")
+    if turn in ("1", "always"):
+        img = orient.upright(img)
     segs = read(img)
+    if turn == "check" or (turn == "retry" and scale.mean_conf(segs) < scale.WEAK_BELOW):
+        # ask the orientation classifier (always for "check", after a weak first reading for "retry");
+        # keep the turned reading only if the recognizer is also more confident in it
+        turned = orient.upright(img)
+        if turned is not img:
+            segs2 = read(turned)
+            if scale.mean_conf(segs2) > scale.mean_conf(segs):
+                img, segs = turned, segs2
     if on("upscale"):
         segs = scale.with_upscale(read, img, segs)
     if on("tiles"):

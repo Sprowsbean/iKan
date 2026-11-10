@@ -10,3 +10,6 @@ uvicorn==0.54.0
 python-multipart==0.0.32
 sudachipy==0.7.0
 sudachidict_core==20261015
+# Experimental engines (pipeline.OPTIONS engine=paddle_v6 / ndl_lite); not on the Space yet
+rapidocr==3.10.0
+PyYAML==6.0.3
