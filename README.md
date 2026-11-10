@@ -94,6 +94,8 @@ Phone: word cards -> tap -> page per kanji -> 🔊 phone's voice
 ```
 
 The scanner, why it's built from existing models, and how it was measured: [docs/SCANNER.md](docs/SCANNER.md).
+OCR accuracy is measured with `backend/eval/run_eval.py` on fixed test sets, including real photos from the
+JaWildText benchmark (see `backend/eval/sets/README.md`); current numbers are in `backend/eval/BASELINE.md`.
 `KanjiCard` and the per-kanji `CharInfo` are defined in `src/types/kanji.ts`.
 
 ## Run it yourself

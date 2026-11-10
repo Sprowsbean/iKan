@@ -26,3 +26,6 @@ dist-ssr
 venv/
 __pycache__/
 .cache/
+
+# eval outputs (per-image results; the summary goes in eval/BASELINE.md)
+backend/eval/results/

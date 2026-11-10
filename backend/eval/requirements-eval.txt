@@ -1,0 +1,2 @@
+# Only for eval/prepare_jawildtext.py (reads the dataset's parquet files); the app doesn't need it.
+pyarrow==26.0.1
