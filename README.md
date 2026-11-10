@@ -157,6 +157,9 @@ Details and comparisons: [docs/SCANNER.md](docs/SCANNER.md).
 
 ## Roadmap
 
+The researched plan for better OCR accuracy (image preparation, a second reader, error correction), with the
+evidence for each step: [docs/OCR_ROADMAP.md](docs/OCR_ROADMAP.md).
+
 - **Handwriting (future interest):** recognize handwritten kanji, for example notes or practice sheets. This
   needs an extra model next to the current OCR, which means more memory on the free server and a slower scan,
   so it is left out for now to keep the app free and fast.
