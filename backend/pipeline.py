@@ -6,7 +6,7 @@ from jp import HIRA
 from postprocess import candidates, furigana
 from postprocess.filters import is_junk, keep_char
 from postprocess.lookalike import fix_lookalikes
-from preprocess import orient, scale
+from preprocess import flatten, orient, scale
 
 # Pipeline switches, so each step can be measured on its own (eval/run_eval.py --opt key=value).
 # The defaults are what the app runs. Environment variables IKAN_<KEY> override them (e.g. IKAN_ENGINE).
@@ -16,6 +16,7 @@ OPTIONS: dict[str, str] = {
     "upscale": "0",       # re-read small text at 2x (preprocess/scale.py)
     "tiles": "0",         # also read big photos in 2x2 overlapping tiles (preprocess/scale.py)
     "orient": "0",        # 0 | always | check | retry: turn sideways / upside-down photos upright (preprocess/orient.py)
+    "flatten": "0",       # 0 | always | retry: UVDoc flattening of curved surfaces (preprocess/flatten.py)
     "furigana": "0",      # small kana beside/above a kanji line = a reading, not text (postprocess/furigana.py)
     "correct": "0",       # unsure kanji -> recognizer alternate / look-alike, if JMdict agrees (candidates.py)
     "variants": "0",      # old forms (戰) get their modern form (戦) on the card (postprocess/variants.py)
@@ -35,6 +36,9 @@ def segments(img):
     turn = OPTIONS.get("orient", "0")
     if turn in ("1", "always"):
         img = orient.upright(img)
+    mode = OPTIONS.get("flatten", "0")
+    if mode == "always":
+        img = flatten.flatten(img)
     segs = read(img)
     if turn == "check" or (turn == "retry" and scale.mean_conf(segs) < scale.WEAK_BELOW):
         # ask the orientation classifier (always for "check", after a weak first reading for "retry");
@@ -44,6 +48,11 @@ def segments(img):
             segs2 = read(turned)
             if scale.mean_conf(segs2) > scale.mean_conf(segs):
                 img, segs = turned, segs2
+    if mode == "retry" and scale.mean_conf(segs) < scale.WEAK_BELOW:
+        flat = flatten.flatten(img)
+        segs2 = read(flat)
+        if scale.mean_conf(segs2) > scale.mean_conf(segs):
+            img, segs = flat, segs2
     if on("upscale"):
         segs = scale.with_upscale(read, img, segs)
     if on("tiles"):

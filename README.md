@@ -183,6 +183,11 @@ evidence for each step: [docs/OCR_ROADMAP.md](docs/OCR_ROADMAP.md).
   [KANJIDIC2](https://www.edrdg.org/wiki/index.php/KANJIDIC_Project). Both are © the Electronic Dictionary
   Research and Development Group, used under the
   [EDRDG licence](https://www.edrdg.org/edrdg/licence.html).
+- **Experimental OCR steps** (`backend/engines/`, `backend/preprocess/`; off by default, not on the Space):
+  [PaddleOCR](https://github.com/PaddlePaddle/PaddleOCR) PP-OCRv6 models, the PP-LCNet_x1_0_doc_ori orientation
+  classifier and UVDoc (all Apache-2.0), run through [RapidOCR](https://github.com/RapidAI/RapidOCR) (Apache-2.0);
+  [NDLOCR-Lite](https://github.com/ndl-lab/ndlocr-lite) text-line recognizers by the National Diet Library
+  (CC BY 4.0; not bundled).
 - **Look-alike kanji** (`backend/data/kanji_lookalikes.tsv`, used by the experimental correction step): derived
   from Lars Yencken's [kanji confusion sets](https://lars.yencken.org/datasets/kanji-confusion), CC BY 3.0.
 - **Runtime and frameworks:** onnxruntime-web (MIT), FastAPI, Gradio, React.
