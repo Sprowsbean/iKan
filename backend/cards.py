@@ -1,5 +1,7 @@
 """Text lines -> kanji cards: SudachiPy splits words (with readings and dictionary forms), pykakasi gives romaji,
 jamdict gives meanings from JMdict and per-kanji readings and levels from KANJIDIC2."""
+from functools import lru_cache
+
 import pykakasi
 from jamdict import Jamdict
 from sudachipy import dictionary, tokenizer as sudachi_tok
@@ -21,11 +23,18 @@ def romaji(kana: str) -> str:
 OLD_TO_N = {"4": "N5-N4", "3": "N4-N3", "2": "N3-N2", "1": "N2-N1"}
 
 
+@lru_cache(maxsize=8192)
+def _kanjidic(ch: str) -> tuple:
+    """KANJIDIC2 records for one character, looked up once. jamdict's lookup() also fetches every character's
+    record and the names dictionary by default; uncached, that took about 35 s of a 125-card scan."""
+    return tuple(x for x in jam.lookup(ch, lookup_ne=False).chars if x.literal == ch)
+
+
 def kanji_info(word: str):
     """Meaning, on/kun readings, level from KANJIDIC2 (fallback when JMdict has no entry)."""
     meanings, on, kun, levels = [], [], [], []
     for ch in word:
-        for c in (x for x in jam.lookup(ch).chars if x.literal == ch):
+        for c in _kanjidic(ch):
             # skip numeric glosses like 京 = "10**16"
             meanings += [m for m in c.meanings(english_only=True) if "**" not in m][:2]
             for g in c.rm_groups:
@@ -48,7 +57,7 @@ def char_cards(word: str, hira: str = "") -> list[dict]:
     the rest are left unmarked."""
     info = {}
     for ch in dict.fromkeys(c for c in word if KANJI.search(c)):
-        for c in (x for x in jam.lookup(ch).chars if x.literal == ch):
+        for c in _kanjidic(ch):
             info[ch] = {
                 "char": ch,
                 "meaning": ", ".join([m for m in c.meanings(english_only=True) if "**" not in m][:3]),
@@ -79,8 +88,9 @@ def char_cards(word: str, hira: str = "") -> list[dict]:
     return list(info.values())
 
 
+@lru_cache(maxsize=8192)
 def glosses(word: str, hira: str = "", n_senses: int = 2) -> str:
-    entries = jam.lookup(word).entries
+    entries = jam.lookup(word, lookup_chars=False, lookup_ne=False).entries  # JMdict words only
     if not entries:
         return ""
     # 降る is both ふる (to fall) and くだる (to descend): prefer the entry matching the reading
