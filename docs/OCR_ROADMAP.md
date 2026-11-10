@@ -20,8 +20,12 @@ still runs the code from `main`.
 |---|---|---|
 | Phase 0: measurement | done (commit 3414dc9) | `backend/eval/run_eval.py`, 4 test sets, baseline in [backend/eval/BASELINE.md](../backend/eval/BASELINE.md) |
 | Split `main.py` into modules | done (commit d51fb11) | 746 of 746 test images give identical text, cards and errors |
-| Phase 1: better input | next, waiting for review | |
-| Phases 2–4 | not started | |
+| Phase 1: better input | done (commit 972320f) | full-res capture, "move closer" hint; upscale / tiles measured, off |
+| Phase 2: second reader | done (commit f4f7b5c) | PP-OCRv6 small: real photos 59.6% → 78.7% of kanji words; NDLOCR-Lite below it |
+| Phase 3: fix after reading | done (commit 8ddf952) | correction: 19 images better, 0 worse with PP-OCRv6; old forms, furigana, unsure marks |
+| Phase 4: curved surfaces | done (commit c17d7d0) | UVDoc helps curved items, hurts flat ones: offer as a choice |
+| Card building speed | done (commit 9121bc4) | photos 33 s → 3.4 s median, identical output |
+| Decision: what to switch on | **waiting for review** | all results and the recommendation: [backend/eval/RESULTS.md](../backend/eval/RESULTS.md) |
 
 What the baseline showed, to keep in mind for the next phases:
 
