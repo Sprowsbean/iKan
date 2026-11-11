@@ -10,6 +10,10 @@ from engines.base import Segment
 DET_MODEL = os.environ.get("PPV6_DET", "small")   # tiny / small / medium
 REC_MODEL = os.environ.get("PPV6_REC", "small")   # small / medium (tiny has no Japanese)
 THREADS = int(os.environ.get("OCR_THREADS", "-1"))  # -1 = onnxruntime's default (all cores)
+# Text detection size. 0 = RapidOCR's default (the photo near full size, up to 2000 px). A number N shrinks only
+# the detection pass so its longer side is at most N (PaddleOCR 2.x's default was 960); lines are still read
+# from the full-size photo.
+DET_SIDE = int(os.environ.get("PPV6_DET_SIDE", "0"))
 
 _engine = None
 
@@ -27,6 +31,7 @@ def _get():
             "Rec.model_type": ModelType(REC_MODEL),
             "EngineConfig.onnxruntime.intra_op_num_threads": THREADS,
             "EngineConfig.onnxruntime.inter_op_num_threads": 1 if THREADS > 0 else -1,
+            **({"Det.limit_type": "max", "Det.limit_side_len": DET_SIDE} if DET_SIDE else {}),
         })
         _keep_alternates(_engine._load_rec_model())
     return _engine

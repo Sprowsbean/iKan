@@ -101,6 +101,19 @@ Deploying it means:
 
 Not done: no deploy and no push.
 
+## Smaller text detection, to save time on the Space (2026-11-11)
+
+PP-OCRv6 finds text near full size (up to 2000 px). `PPV6_DET_SIDE=N` shrinks only that detection pass (PaddleOCR
+2.x used 960); lines are still read from the full photo. Three runs side by side, 2 cores each:
+
+| detection size | real photos | JaWildText photos | synthetic | s median (real / JaWildText photos) |
+|---|---|---|---|---|
+| **full (default)** | **80.9%** · 1 | **87.6%** · 422 | 97.5% · 9 | 5.6 / 7.3 |
+| 1280 | 78.7% · 1 | 86.5% · 391 | 97.6% · 8 | 4.8 / 6.1 |
+| 960 | 66.9% · 1 | 81.7% · 332 | 97.2% · 10 | 4.1 / 5.5 |
+
+Not worth it: 15-25% faster for 1-14 points fewer words. Kept at full size.
+
 ## Follow-ups found along the way
 
 1. ~~**Filter out simplified Chinese.**~~ Done (postprocess/charset.py, 2026-11-11): a kanji outside JIS X 0208 that
