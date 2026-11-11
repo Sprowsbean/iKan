@@ -3,24 +3,27 @@ import importlib
 import os
 
 from jp import HIRA
-from postprocess import candidates, furigana
+from postprocess import candidates, charset, furigana
 from postprocess.filters import is_junk, keep_char
 from postprocess.lookalike import fix_lookalikes
 from preprocess import flatten, orient, scale
 
 # Pipeline switches, so each step can be measured on its own (eval/run_eval.py --opt key=value).
 # The defaults are what the app runs. Environment variables IKAN_<KEY> override them (e.g. IKAN_ENGINE).
+# Defaults = the setup chosen in eval/RESULTS.md (PP-OCRv6 + correct + orient=check, variants and unsure on).
+# The previous app (meikiocr alone): IKAN_ENGINE=meiki IKAN_CORRECT=0 IKAN_ORIENT=0 IKAN_VARIANTS=0 IKAN_UNSURE=0.
 OPTIONS: dict[str, str] = {
-    "engine": "meiki",    # meiki | paddle_v6 | ndl_lite (engines/)
+    "engine": "paddle_v6",  # meiki | paddle_v6 | ndl_lite (engines/)
     "filters": "1",       # fake-kanji filters (postprocess/filters.py); tuned on meikiocr's confidences
+    "charset": "1",       # Chinese-only kanji -> the recognizer's Japanese runner-up, or dropped (charset.py)
     "upscale": "0",       # re-read small text at 2x (preprocess/scale.py)
     "tiles": "0",         # also read big photos in 2x2 overlapping tiles (preprocess/scale.py)
-    "orient": "0",        # 0 | always | check | retry: turn sideways / upside-down photos upright (preprocess/orient.py)
+    "orient": "check",    # 0 | always | check | retry: turn sideways / upside-down photos upright (preprocess/orient.py)
     "flatten": "0",       # 0 | always | retry: UVDoc flattening of curved surfaces (preprocess/flatten.py)
     "furigana": "0",      # small kana beside/above a kanji line = a reading, not text (postprocess/furigana.py)
-    "correct": "0",       # unsure kanji -> recognizer alternate / look-alike, if JMdict agrees (candidates.py)
-    "variants": "0",      # old forms (戰) get their modern form (戦) on the card (postprocess/variants.py)
-    "unsure": "0",        # cards list the characters the reader was unsure of, with alternatives
+    "correct": "1",       # unsure kanji -> recognizer alternate / look-alike, if JMdict agrees (candidates.py)
+    "variants": "1",      # old forms (戰) get their modern form (戦) on the card (postprocess/variants.py)
+    "unsure": "1",        # cards list the characters the reader was unsure of, with alternatives
 }
 OPTIONS.update({k: os.environ[f"IKAN_{k.upper()}"] for k in OPTIONS if f"IKAN_{k.upper()}" in os.environ})
 
@@ -76,6 +79,8 @@ def ocr_detail(img) -> list[Line]:
     for seg in segs:
         if on("filters") and is_junk(seg):
             continue
+        if on("charset"):
+            seg = charset.clean(seg)
         if on("correct"):
             seg = candidates.correct(seg)
         # drop an unsure kanji and break the line there, so its neighbours don't glue into a fake word

@@ -27,6 +27,7 @@ reference). The real photos decide; the synthetic set is only a guard against re
 | v6 + correct + orient always | 80.9% · 4 | 86.2% · 456 | 59.6% · 70 | 98.5% · 9 |
 | v6 + correct + orient retry | 79.4% · 1 | 87.0% · 463 | 66.4% · 68 | 96.9% · 18 |
 | **v6 + correct + orient check** | 79.4% · 1 | 86.7% · 457 | 65.7% · 72 | 97.5% · 10 |
+| **+ Japanese-only kanji (charset) = the new default** | **80.9% · 1** | **87.6% · 422** | **66.6% · 67** | **97.5% · 9** |
 | v6 + flatten retry | 78.7% · 1 | 86.6% · 478 | – | 96.9% · 19 |
 | v6 + flatten always | 83.8% · 3 | 85.1% · 456 | – | 95.7% · 10 |
 | NDLOCR-Lite | 72.8% · 1 | 83.7% · 512 | 61.4% · 97 | 79.7% · 45 |
@@ -90,8 +91,8 @@ Switch the reader to **PP-OCRv6 small + correct + orient=check**, and turn on **
   - one large-font sign at two sizes, where v6 misses 出口はこちら (−2);
   - a poster of single kanji, where it misses 中 and 力 (−2).
 
-Settings for the Space: `IKAN_ENGINE=paddle_v6 IKAN_CORRECT=1 IKAN_ORIENT=check IKAN_VARIANTS=1 IKAN_UNSURE=1` (or change the defaults in
-`pipeline.py`).
+Chosen on 2026-11-11 (the 1-point synthetic drop accepted): these are now the defaults in `pipeline.py`, plus
+`charset=1`. The old reader: `IKAN_ENGINE=meiki IKAN_CORRECT=0 IKAN_ORIENT=0 IKAN_VARIANTS=0 IKAN_UNSURE=0`.
 
 Deploying it means:
 - adding `rapidocr` to `requirements-space.txt`;
@@ -102,9 +103,10 @@ Not done: no deploy and no push.
 
 ## Follow-ups found along the way
 
-1. **Filter out simplified Chinese.** PP-OCRv6's recognizer is multilingual, so it sometimes outputs Chinese forms
-   (这, 车, 关, 场). The correction step already fixes some of them. A Japanese-charset check on output characters
-   and on alternatives would catch the rest.
+1. ~~**Filter out simplified Chinese.**~~ Done (postprocess/charset.py, 2026-11-11): a kanji outside JIS X 0208 that
+   no JMdict word uses is swapped for the recognizer's own Japanese runner-up (顺 → 順, 级 → 級), or dropped. On
+   the four sets: 30 images better, 2 worse (one word each), synthetic unchanged. Alternatives on cards are
+   filtered the same way.
 2. **Phone test:**
    - full-resolution capture on Android Chrome and on an iPhone;
    - the "move closer" hint.

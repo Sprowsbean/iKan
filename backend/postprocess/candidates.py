@@ -13,6 +13,7 @@ from functools import lru_cache
 from pathlib import Path
 
 from jp import KANJI
+from postprocess.charset import japanese
 
 # backend/eval/BASELINE.md: on real photos (JaWildText lines) characters below 0.5 confidence are right
 # less than 14% of the time; above it, 39-76%. So only those are candidates for a change.
@@ -55,7 +56,7 @@ def pieces(run: str) -> int:
 
 def _candidates(c: dict) -> list[tuple[str, float]]:
     """Kanji the recognizer proposed at this spot (with its probability), then known look-alikes."""
-    out = {a["char"]: a["conf"] for a in c.get("alts", [])[1:] if KANJI.fullmatch(a["char"])}
+    out = {a["char"]: a["conf"] for a in c.get("alts", [])[1:] if KANJI.fullmatch(a["char"]) and japanese(a["char"])}
     for ch in _lookalikes().get(c["char"], ""):
         out.setdefault(ch, LOOKALIKE_PRIOR)
     out.pop(c["char"], None)

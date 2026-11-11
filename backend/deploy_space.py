@@ -16,12 +16,14 @@ from huggingface_hub import HfApi, hf_hub_download
 
 # what the Space runs: the app's modules and folders (nothing else: no venv, no eval, no experiments).
 # Since the backend was split into modules, uploading main.py alone in the Space's web page is not enough.
-CODE = ["app.py", "main.py", "pipeline.py", "cards.py", "jp.py", "engines/*.py", "postprocess/*.py"]
+CODE = ["app.py", "main.py", "pipeline.py", "cards.py", "jp.py",
+        "engines/*.py", "preprocess/*.py", "postprocess/*.py", "data/*.tsv"]
 REQUIREMENTS = {"requirements-space.txt": "requirements.txt"}
 ABOUT = """
 Backend for the Kanji Interpreter app: `POST /analyze` with a photo (multipart field `file`) returns the kanji
 words found, with readings, romaji, meanings and JLPT level. The page here is a test form for the same thing.
-Free and local: meikiocr (OCR), SudachiPy, pykakasi and JMdict/KANJIDIC2 via jamdict.
+Free and local: PaddleOCR PP-OCRv6 via RapidOCR (OCR; meikiocr as an option), SudachiPy, pykakasi and
+JMdict/KANJIDIC2 via jamdict.
 Source: https://github.com/Sprowsbean/Kanji_Intepreter
 """
 

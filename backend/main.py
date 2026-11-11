@@ -18,6 +18,7 @@ from jp import KANJI
 from pipeline import LAST_HINTS, on, read_detail
 from postprocess import variants
 from postprocess.candidates import LOW_CONF
+from postprocess.charset import japanese
 
 app = FastAPI(title="Kanji OCR")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -75,6 +76,7 @@ def mark_unsure(cards: list[dict], detail) -> None:
                     alts = [a["char"] for a in c.get("alts", []) if a["char"] != c["char"] and KANJI.match(a["char"])]
                     if "was" in c:
                         alts = [c["was"]] + [a for a in alts if a != c["was"]]
+                    alts = [a for a in alts if japanese(a)]  # never offer a Chinese form like 场 (old forms like 稻 stay)
                     unsure.append({"char": c["char"], "conf": round(c["conf"], 2), "alternatives": alts[:3]})
             if unsure:
                 card["unsure"] = unsure

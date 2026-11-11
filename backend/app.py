@@ -45,7 +45,22 @@ demo = gr.Interface(
 server = App()
 server.add_api_route("/analyze", analyze, methods=["POST"])
 
+def _warm_up():
+    """Load (and on a fresh Space, download) the OCR models while the page starts, not on a visitor's first
+    scan: PP-OCRv6 comes from ModelScope and the orientation model from Hugging Face, about 35 MB."""
+    import numpy as np
+    from postprocess import candidates, charset
+    try:
+        analyze_image(np.full((64, 64, 3), 255, np.uint8))
+        charset.japanese("字"), candidates.pieces("字字")  # the kanji and word lists (a few seconds each)
+        print("OCR models ready")
+    except Exception as e:  # a failed warm-up only means the first scan loads them instead
+        print(f"OCR warm-up failed: {e!r}")
+
+
 if __name__ == "__main__":
+    import threading
+    threading.Thread(target=_warm_up, daemon=True).start()
     # ssr_mode=False: Spaces turn on Gradio's server-side rendering, which puts a Node (SvelteKit) proxy in
     # front that rejects every multipart POST ("Cross-site POST form submissions are forbidden", 403), i.e.
     # every photo upload to /analyze. Without it, Python answers on the Space's port directly.
