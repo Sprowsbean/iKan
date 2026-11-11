@@ -3,7 +3,8 @@
 One-time: log in with a *write* token from https://huggingface.co/settings/tokens
     hf auth login
 Then, from backend/:
-    venv\\Scripts\\python deploy_space.py [space-name]        (default name: kanji-interpreter)
+    venv\\Scripts\\python deploy_space.py [space-name] ["commit message"]   (default name: kanji-interpreter)
+All files go up in one commit, so the Space rebuilds once.
 Creates the Space if it doesn't exist (public, CPU basic). Hugging Face installs the packages and starts
 app.py (a few minutes the first time). The API is served at https://<username>-<space-name>.hf.space ;
 the Space must be public so the website can call it.
@@ -12,7 +13,7 @@ import re
 import sys
 from pathlib import Path
 
-from huggingface_hub import HfApi, hf_hub_download
+from huggingface_hub import CommitOperationAdd, HfApi, hf_hub_download
 
 # what the Space runs: the app's modules and folders (nothing else: no venv, no eval, no experiments).
 # Since the backend was split into modules, uploading main.py alone in the Space's web page is not enough.
@@ -29,7 +30,8 @@ Source: https://github.com/Sprowsbean/Kanji_Intepreter
 
 
 def front_matter(repo_id: str, api: HfApi) -> str:
-    """Keep the Space's own settings (its Gradio sdk_version), make sure it runs Python 3.11."""
+    """Keep the Space's own settings (title, emoji, Gradio sdk_version...), make sure it runs Python 3.11.
+    The defaults below are only for a new Space."""
     meta = {"title": "Kanji Interpreter API", "emoji": "📷", "colorFrom": "pink", "colorTo": "gray",
             "sdk": "gradio", "app_file": "app.py", "pinned": "false"}
     try:
@@ -38,9 +40,7 @@ def front_matter(repo_id: str, api: HfApi) -> str:
         for line in (m.group(1).splitlines() if m else []):
             if ":" in line:
                 k, v = line.split(":", 1)
-                meta.setdefault(k.strip(), v.strip())
-                if k.strip() == "sdk_version":
-                    meta["sdk_version"] = v.strip()
+                meta[k.strip()] = v.strip()
     except Exception:  # new Space without a README yet: Hugging Face picks the Gradio version
         pass
     meta["python_version"] = '"3.11"'  # the pinned packages (numpy, opencv, sudachi) need 3.11+
@@ -55,9 +55,12 @@ api.create_repo(repo_id, repo_type="space", space_sdk="gradio", private=False, e
 here = Path(__file__).parent
 readme = front_matter(repo_id, api) + ABOUT
 files = {p.relative_to(here).as_posix(): p.relative_to(here).as_posix() for pat in CODE for p in sorted(here.glob(pat))}
-for local, remote in {**files, **REQUIREMENTS}.items():
-    api.upload_file(path_or_fileobj=here / local, path_in_repo=remote, repo_id=repo_id, repo_type="space")
-api.upload_file(path_or_fileobj=readme.encode(), path_in_repo="README.md", repo_id=repo_id, repo_type="space")
+# one commit, so the Space rebuilds once and never starts with half old, half new code
+ops = [CommitOperationAdd(path_in_repo=remote, path_or_fileobj=here / local)
+       for local, remote in {**files, **REQUIREMENTS}.items()]
+ops.append(CommitOperationAdd(path_in_repo="README.md", path_or_fileobj=readme.encode()))
+api.create_commit(repo_id, ops, commit_message=sys.argv[2] if len(sys.argv) > 2 else "Update backend",
+                  repo_type="space")
 host = repo_id.replace("/", "-").replace("_", "-").replace(".", "-").lower()
 print(f"Uploaded. Build log: https://huggingface.co/spaces/{repo_id}")
 print(f"API URL (set as VITE_API_URL on Render): https://{host}.hf.space")
