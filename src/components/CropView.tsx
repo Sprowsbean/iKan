@@ -5,6 +5,7 @@ import { boxAround, findDocument, findTextBox, straighten } from '../services/sc
 import type { Box, CornerPoints } from '../services/scanner';
 import type { Found } from './CameraCapture';
 import { ScannerLoading } from './ScannerLoading';
+import { getScanMode } from '../services/scanMode';
 
 interface CropViewProps {
   file: File;
@@ -88,7 +89,8 @@ export function CropView({ file, found, onConfirm, onBack, backLabel }: CropView
     if (!img) return;
     let corners = doc;
     if (!found) { // upload: look for a page, else for text, once (Scan works meanwhile, on the whole photo)
-      corners = await findDocument(img);
+      // "Text" mode (a screenshot, a sign, a poster): never take a bright rectangle for a page
+      corners = getScanMode() === 'text' ? null : await findDocument(img);
       if (touched.current) { setStatus(''); return; }
       if (corners) { setDoc(corners); setMode('page'); }
       else {

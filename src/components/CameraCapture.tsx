@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, Circle } from 'lucide-react';
+import { X, Circle, FileText, Type } from 'lucide-react';
 import { findDocument, findTextBox } from '../services/scanner';
+import { getScanMode, setScanMode } from '../services/scanMode';
+import type { ScanMode } from '../services/scanMode';
 import { ScannerLoading } from './ScannerLoading';
 import type { Box, CornerPoints } from '../services/scanner';
 
@@ -55,6 +57,18 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const foundRef = useRef<Found>({ doc: null, text: null });
   const [found, setFound] = useState<Found>({ doc: null, text: null });
   const [error, setError] = useState<string>('');
+  const [mode, setMode] = useState<ScanMode>(getScanMode);
+  const modeRef = useRef(mode); // read by the detection timers
+  const toggleMode = () => {
+    const next: ScanMode = mode === 'auto' ? 'text' : 'auto';
+    modeRef.current = next;
+    setMode(next);
+    setScanMode(next);
+    if (next === 'text') {
+      foundRef.current = { ...foundRef.current, doc: null };
+      setFound(foundRef.current);
+    }
+  };
   // where the video frame actually sits on screen (object-cover crops it), to draw the border on top
   const [view, setView] = useState({ ox: 0, oy: 0, w: 1, h: 1, vw: 1, vh: 1 });
 
@@ -100,6 +114,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   // gets a box. Each detector runs only when its previous run has finished, so a slow phone never piles up.
   useEffect(() => {
     let stopped = false, docMiss = 0, textMiss = 0, docBusy = false, textBusy = false;
+    const textOnly = () => modeRef.current === 'text'; // a function: the mode can change while a frame is checked
     const update = (next: Partial<Found>) => {
       foundRef.current = { ...foundRef.current, ...next };
       setFound(foundRef.current);
@@ -115,11 +130,11 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
     };
     const docTimer = setInterval(async () => {
       const v = ready();
-      if (!v || docBusy) return;
+      if (!v || docBusy || textOnly()) return;
       docBusy = true;
       const doc = await findDocument(v);
       docBusy = false;
-      if (stopped) return;
+      if (stopped || textOnly()) return; // switched to text while this frame was checked
       if (doc) { docMiss = 0; update({ doc }); } else if (++docMiss >= LOST_AFTER) update({ doc: null });
     }, DOC_EVERY_MS);
     const textTimer = setInterval(async () => {
@@ -243,7 +258,15 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           <Circle className="w-12 h-12 text-matcha-text" strokeWidth={2} />
         </button>
 
-        <div className="w-14"></div>
+        <button
+          onClick={toggleMode}
+          className="w-16 flex flex-col items-center gap-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-2xl text-white transition-colors"
+          aria-label={mode === 'auto' ? 'Finding pages and text. Tap to find text only (screens, signs)'
+                                      : 'Finding text only. Tap to also find pages'}
+        >
+          {mode === 'auto' ? <FileText className="w-5 h-5" /> : <Type className="w-5 h-5" />}
+          <span className="text-xs">{mode === 'auto' ? 'Auto' : 'Text'}</span>
+        </button>
       </div>
     </div>
   );
