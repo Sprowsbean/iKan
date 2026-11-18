@@ -203,7 +203,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const pts = d ? [d.topLeft, d.topRight, d.bottomRight, d.bottomLeft].map((p) => px(p.x, p.y)).join(' ')
                 : fr(found.text ?? GUIDE);
   const small = !d && found.text?.charPx !== undefined && found.text.charPx < SMALL_TEXT_PX;
-  const hint = mode === 'photo' ? 'Screen mode: the whole photo will be read'
+  const hint = mode === 'photo' ? 'Detect off: the whole photo will be read (for screens)'
              : d ? 'Page found: hold still and tap the button'
              : small ? 'The text is small: move closer for a better read'
              : found.text ? 'Text found: tap the button, you can adjust the box next'
@@ -261,22 +261,22 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           <Circle className="w-12 h-12 text-matcha-text" strokeWidth={2} />
         </button>
 
-        {/* Screen switch. Off: scanic finds the paper / board / sign. On: a screen has no edges to find, so the
-            whole photo is read instead of a box drawn on noise. */}
+        {/* Detect switch. On (default): scanic finds the paper / board / sign. Off: for screens, which have no
+            edges to find, the whole photo is read instead of a box drawn on noise. */}
         <button
           type="button"
           role="switch"
-          aria-checked={mode === 'photo'}
-          aria-label="Screen mode: read the whole photo instead of finding a page"
+          aria-checked={mode === 'auto'}
+          aria-label="Detect the page or text (turn off for screens: reads the whole photo)"
           onClick={toggleMode}
           className="w-16 flex flex-col items-center gap-1.5 text-white"
         >
           <span className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors
-                            ${mode === 'photo' ? 'bg-[#8DB88D]' : 'bg-gray-600'}`}>
+                            ${mode === 'auto' ? 'bg-[#8DB88D]' : 'bg-gray-600'}`}>
             <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform
-                              ${mode === 'photo' ? 'translate-x-6' : 'translate-x-1'}`} />
+                              ${mode === 'auto' ? 'translate-x-6' : 'translate-x-1'}`} />
           </span>
-          <span className="text-xs">Screen</span>
+          <span className="text-xs">Detect</span>
         </button>
       </div>
     </div>
