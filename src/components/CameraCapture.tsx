@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, Circle, FileText, Image as ImageIcon } from 'lucide-react';
+import { X, Circle } from 'lucide-react';
 import { findDocument, findTextBox } from '../services/scanner';
 import { getScanMode, setScanMode } from '../services/scanMode';
 import type { ScanMode } from '../services/scanMode';
@@ -203,7 +203,7 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const pts = d ? [d.topLeft, d.topRight, d.bottomRight, d.bottomLeft].map((p) => px(p.x, p.y)).join(' ')
                 : fr(found.text ?? GUIDE);
   const small = !d && found.text?.charPx !== undefined && found.text.charPx < SMALL_TEXT_PX;
-  const hint = mode === 'photo' ? 'Whole photo: all the text in view will be read'
+  const hint = mode === 'photo' ? 'Screen mode: the whole photo will be read'
              : d ? 'Page found: hold still and tap the button'
              : small ? 'The text is small: move closer for a better read'
              : found.text ? 'Text found: tap the button, you can adjust the box next'
@@ -261,14 +261,22 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
           <Circle className="w-12 h-12 text-matcha-text" strokeWidth={2} />
         </button>
 
+        {/* Screen switch. Off: scanic finds the paper / board / sign. On: a screen has no edges to find, so the
+            whole photo is read instead of a box drawn on noise. */}
         <button
+          type="button"
+          role="switch"
+          aria-checked={mode === 'photo'}
+          aria-label="Screen mode: read the whole photo instead of finding a page"
           onClick={toggleMode}
-          className="w-16 flex flex-col items-center gap-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-2xl text-white transition-colors"
-          aria-label={mode === 'auto' ? 'Auto: finds the page or the text. Tap to read the whole photo instead'
-                                      : 'Photo: reads the whole photo. Tap to find the page or text again'}
+          className="w-16 flex flex-col items-center gap-1.5 text-white"
         >
-          {mode === 'auto' ? <FileText className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
-          <span className="text-xs">{mode === 'auto' ? 'Auto' : 'Photo'}</span>
+          <span className={`relative inline-flex h-7 w-12 items-center rounded-full transition-colors
+                            ${mode === 'photo' ? 'bg-[#8DB88D]' : 'bg-gray-600'}`}>
+            <span className={`inline-block h-5 w-5 rounded-full bg-white shadow transition-transform
+                              ${mode === 'photo' ? 'translate-x-6' : 'translate-x-1'}`} />
+          </span>
+          <span className="text-xs">Screen</span>
         </button>
       </div>
     </div>
