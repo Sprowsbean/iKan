@@ -1,24 +1,28 @@
 """Free, local Kanji scanner: photo -> OCR (engines/) -> clean-up (postprocess/) -> kanji cards (cards.py).
 No API keys, no tokens. Run: uvicorn main:app --reload --port 8000
 """
+import logging
 import os
+import time
 from pathlib import Path
 
 # keep the OCR model cache next to the code (not in the user's home on C:); Docker sets HF_HOME itself.
 # Must be set before the engines import meikiocr, which downloads the models.
 os.environ.setdefault("HF_HOME", str(Path(__file__).parent / ".cache" / "huggingface"))
 
-import cv2
-import numpy as np
-from fastapi import FastAPI, File, HTTPException, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+import cv2  # noqa: E402 (HF_HOME is set first)
+import numpy as np  # noqa: E402 (HF_HOME is set first)
+from fastapi import FastAPI, File, HTTPException, UploadFile  # noqa: E402 (HF_HOME is set first)
+from fastapi.middleware.cors import CORSMiddleware  # noqa: E402 (HF_HOME is set first)
 
-from cards import cards_for, glosses
-from jp import KANJI
-from pipeline import LAST_HINTS, on, read_detail
-from postprocess import variants
-from postprocess.candidates import LOW_CONF
-from postprocess.charset import japanese
+from cards import cards_for, glosses  # noqa: E402 (HF_HOME is set first)
+from jp import KANJI  # noqa: E402 (HF_HOME is set first)
+from pipeline import LAST_HINTS, on, read_detail  # noqa: E402 (HF_HOME is set first)
+from postprocess import variants  # noqa: E402 (HF_HOME is set first)
+from postprocess.candidates import LOW_CONF  # noqa: E402 (HF_HOME is set first)
+from postprocess.charset import japanese  # noqa: E402 (HF_HOME is set first)
+
+log = logging.getLogger("ikan")  # one line per scan (size, lines, cards, seconds): shown in the Space's logs
 
 app = FastAPI(title="Kanji OCR")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -26,10 +30,15 @@ app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], all
 
 @app.post("/analyze")
 async def analyze(file: UploadFile = File(...)):
+    """POST /analyze: an uploaded photo -> text and kanji cards (400 if not an image, 404 if no kanji)."""
     img = cv2.imdecode(np.frombuffer(await file.read(), np.uint8), cv2.IMREAD_COLOR)
     if img is None:
+        log.warning("rejected %s: not a valid image", file.filename)
         raise HTTPException(400, "Not a valid image")
+    start = time.perf_counter()
     result = analyze_image(img)
+    log.info("scan %dx%d: %d lines, %d cards in %.1f s", img.shape[1], img.shape[0],
+             len(result["text"].splitlines()), len(result["cards"]), time.perf_counter() - start)
     if not result["cards"]:
         raise HTTPException(404, "No Kanji found in the image")
     return result

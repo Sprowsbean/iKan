@@ -1,0 +1,5 @@
+# For running the tests only (not needed by the app or the Space):  venv\Scripts\python -m pytest
+-r requirements.txt
+pytest==9.2.0
+httpx==0.28.1
+pycodestyle==2.15.0

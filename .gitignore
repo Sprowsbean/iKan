@@ -29,3 +29,4 @@ __pycache__/
 
 # eval outputs (per-image results; the summary goes in eval/BASELINE.md)
 backend/eval/results/
+.pytest_cache/

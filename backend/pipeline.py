@@ -18,7 +18,7 @@ OPTIONS: dict[str, str] = {
     "charset": "1",       # Chinese-only kanji -> the recognizer's Japanese runner-up, or dropped (charset.py)
     "upscale": "0",       # re-read small text at 2x (preprocess/scale.py)
     "tiles": "0",         # also read big photos in 2x2 overlapping tiles (preprocess/scale.py)
-    "orient": "check",    # 0 | always | check | retry: turn sideways / upside-down photos upright (preprocess/orient.py)
+    "orient": "check",    # 0 | always | check | retry: turn sideways / upside-down photos upright (orient.py)
     "flatten": "0",       # 0 | always | retry: UVDoc flattening of curved surfaces (preprocess/flatten.py)
     "furigana": "0",      # small kana beside/above a kanji line = a reading, not text (postprocess/furigana.py)
     "correct": "1",       # unsure kanji -> recognizer alternate / look-alike, if JMdict agrees (candidates.py)
@@ -29,6 +29,7 @@ OPTIONS.update({k: os.environ[f"IKAN_{k.upper()}"] for k in OPTIONS if f"IKAN_{k
 
 
 def on(key: str) -> bool:
+    """True if a pipeline switch is on (anything but 0, empty, off or false)."""
     return OPTIONS.get(key, "0") not in ("0", "", "off", "false")
 
 
@@ -70,6 +71,7 @@ LAST_HINTS: list[tuple[str, str]] = []  # furigana removed from the last image r
 
 
 def ocr_detail(img) -> list[Line]:
+    """BGR image -> cleaned text lines, each with its characters' confidence and alternatives."""
     segs = segments(img)
     LAST_HINTS.clear()
     if on("furigana"):
@@ -101,6 +103,7 @@ def ocr_detail(img) -> list[Line]:
 
 
 def ocr_lines(img) -> list[str]:
+    """BGR image -> cleaned text lines (text only)."""
     return [t for t, _ in ocr_detail(img)]
 
 

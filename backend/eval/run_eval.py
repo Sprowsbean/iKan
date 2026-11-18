@@ -78,10 +78,12 @@ def as_sent(img):
 
 
 def norm(s: str) -> str:
+    """Unicode-normalise (NFKC) and drop all whitespace, so only the characters are compared."""
     return "".join(unicodedata.normalize("NFKC", s).split())
 
 
 def edits(a: str, b: str) -> int:
+    """Levenshtein distance: the fewest insertions, deletions and substitutions from a to b."""
     prev = list(range(len(b) + 1))
     for i, ca in enumerate(a, 1):
         cur = [i]
@@ -94,6 +96,7 @@ def edits(a: str, b: str) -> int:
 # ---------- test sets: (set, file path, {"lines": [...]} or {"words": [...]} or {"line": "..."}) ----------
 
 def load_sets(names: list[str]) -> list[tuple[str, Path, dict]]:
+    """The test images of the named sets, each with its reference text."""
     items = []
     jaw = TEST / "jawildtext"
     if "jaw_lines" in names:
@@ -109,13 +112,14 @@ def load_sets(names: list[str]) -> list[tuple[str, Path, dict]]:
         items += [("real", TEST / f, {"lines": ls}) for f, ls in extra.items() if not f.startswith("_")]
     if "synthetic" in names:
         gt = json.loads((TEST / "gt_all.json").read_text(encoding="utf-8"))
-        items += [("synthetic", TEST / f, {"lines": [l for l in t.split("\n") if l.strip()]}) for f, t in gt.items()]
+        items += [("synthetic", TEST / f, {"lines": [ln for ln in t.split("\n") if ln.strip()]}) for f, t in gt.items()]
     return items
 
 
 # ---------- scoring one image ----------
 
 def score(ref: dict, text: str) -> dict:
+    """Compare the OCR text with the reference: errors, words and characters found, fake kanji."""
     got = norm(text)
     s: dict = {}
     if "line" in ref:
@@ -127,7 +131,7 @@ def score(ref: dict, text: str) -> dict:
     if "words" in ref:
         words = [norm(w) for w in ref["words"]]
     else:
-        words = list(dict.fromkeys(r for l in lines for r in KANJI_RUN.findall(norm(l))))
+        words = list(dict.fromkeys(r for ln in lines for r in KANJI_RUN.findall(norm(ln))))
     s["words"], s["words_found"] = len(words), sum(w in got for w in words)
     if lines is not None:  # full reference text known: bag of characters, fake kanji
         want_all = norm("".join(lines))
@@ -147,6 +151,7 @@ def capture_segments():
     original, seen = pipeline.segments, []
 
     def wrapped(img):
+        """The real pipeline.segments, also keeping the raw reading for the confidence check."""
         segs = original(img)
         seen.append(segs)
         return segs
@@ -182,6 +187,7 @@ def calibration(pairs: list[tuple[list, str]]) -> list[tuple[str, int, float]]:
 # ---------- run, summarize, compare ----------
 
 def run(label: str, names: list[str], limit: int | None, opts: list[str]) -> None:
+    """Run every image of the sets through analyze_image() and save per-image results and a summary."""
     use_two_cores()
     sys.path.insert(0, str(BACKEND))
     os.chdir(BACKEND)
@@ -224,22 +230,31 @@ def run(label: str, names: list[str], limit: int | None, opts: list[str]) -> Non
 
 
 def summarize(records: list[dict], cal: list) -> str:
+    """The summary tables: one row per set, plus how often each confidence band is right."""
     rows = ["| set | images | CER | exact | kanji words | JP chars | fake kanji | s median | s max | crashes |",
             "|---|---|---|---|---|---|---|---|---|---|"]
     for name in SETS:
         rs = [r for r in records if r["set"] == name]
         if not rs:
             continue
-        tot = lambda k: sum(r.get(k, 0) for r in rs)
-        has = lambda k: any(k in r for r in rs)
-        pct = lambda a, b: f"{100 * a / b:.1f}%" if b else "-"
+
+        def tot(k: str, rs=rs) -> int:
+            return sum(r.get(k, 0) for r in rs)
+
+        def has(k: str, rs=rs) -> bool:
+            return any(k in r for r in rs)
+
+        def pct(a: float, b: float) -> str:
+            return f"{100 * a / b:.1f}%" if b else "-"
+
         secs = [r["seconds"] for r in rs]
         rows.append(" | ".join([
             f"| {name}", str(len(rs)),
             pct(tot("edits"), tot("ref_chars")) if has("edits") else "-",
             pct(tot("exact"), len(rs)) if has("exact") else "-",
             f"{tot('words_found')}/{tot('words')} ({pct(tot('words_found'), tot('words'))})",
-            f"{tot('jp_found')}/{tot('jp_chars')} ({pct(tot('jp_found'), tot('jp_chars'))})" if has("jp_chars") else "-",
+            (f"{tot('jp_found')}/{tot('jp_chars')} ({pct(tot('jp_found'), tot('jp_chars'))})"
+             if has("jp_chars") else "-"),
             str(tot("fake")) if has("fake") else "-",
             f"{statistics.median(secs):.2f}", f"{max(secs):.2f}",
             str(sum(1 for r in rs if r["error"])) + " |"]))
@@ -252,14 +267,18 @@ def summarize(records: list[dict], cal: list) -> str:
 
 
 def compare(a: str, b: str) -> None:
-    load = lambda l: {(r["set"], r["file"]): r for r in map(json.loads, open(RESULTS / l / "items.jsonl", encoding="utf-8"))}
+    """Report whether two saved runs give identical text, cards and errors, image by image."""
+    def load(label: str) -> dict:
+        with open(RESULTS / label / "items.jsonl", encoding="utf-8") as f:
+            return {(r["set"], r["file"]): r for r in map(json.loads, f)}
     ra, rb = load(a), load(b)
     keys = sorted(set(ra) | set(rb))
     diff = [k for k in keys if k not in ra or k not in rb or
             (ra[k]["text"], ra[k]["cards"], ra[k]["error"]) != (rb[k]["text"], rb[k]["cards"], rb[k]["error"])]
     print(f"{len(keys) - len(diff)} of {len(keys)} images give identical text, cards and errors")
     for k in diff[:20]:
-        print(" differs:", k, "|", ra.get(k, {}).get("text", "(missing)")[:60], "|", rb.get(k, {}).get("text", "(missing)")[:60])
+        ta, tb = (r.get(k, {}).get("text", "(missing)")[:60] for r in (ra, rb))
+        print(" differs:", k, "|", ta, "|", tb)
 
 
 if __name__ == "__main__":

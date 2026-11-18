@@ -14,10 +14,12 @@ try:  # ZeroGPU: must be imported before anything CUDA-related; not installed lo
 except ImportError:
     spaces = None
 
+import logging
+
 import gradio as gr
 from gradio.routes import App
 
-from main import analyze, analyze_image
+from main import analyze, analyze_image, log
 
 if spaces is not None:
     @spaces.GPU
@@ -26,6 +28,7 @@ if spaces is not None:
 
 
 def try_photo(image):
+    """The Gradio test page's handler: an RGB photo -> the same JSON as POST /analyze."""
     if image is None:
         return {"error": "Upload a photo with Japanese text"}
     return analyze_image(image[:, :, ::-1].copy())  # Gradio gives RGB, OpenCV code expects BGR
@@ -45,6 +48,7 @@ demo = gr.Interface(
 server = App()
 server.add_api_route("/analyze", analyze, methods=["POST"])
 
+
 def _warm_up():
     """Load (and on a fresh Space, download) the OCR models while the page starts, not on a visitor's first
     scan: PP-OCRv6 comes from ModelScope and the orientation model from Hugging Face, about 35 MB."""
@@ -53,13 +57,14 @@ def _warm_up():
     try:
         analyze_image(np.full((64, 64, 3), 255, np.uint8))
         charset.japanese("字"), candidates.pieces("字字")  # the kanji and word lists (a few seconds each)
-        print("OCR models ready")
-    except Exception as e:  # a failed warm-up only means the first scan loads them instead
-        print(f"OCR warm-up failed: {e!r}")
+        log.info("OCR models ready")
+    except Exception:  # a failed warm-up only means the first scan loads them instead
+        log.exception("OCR warm-up failed")
 
 
 if __name__ == "__main__":
     import threading
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
     threading.Thread(target=_warm_up, daemon=True).start()
     # ssr_mode=False: Spaces turn on Gradio's server-side rendering, which puts a Node (SvelteKit) proxy in
     # front that rejects every multipart POST ("Cross-site POST form submissions are forbidden", 403), i.e.

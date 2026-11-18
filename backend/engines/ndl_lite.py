@@ -71,6 +71,7 @@ def _read_line(crop) -> list[dict]:
 
 
 def read(img) -> list[Segment]:
+    """BGR image -> lines of characters: PP-OCRv6 finds the lines, NDLOCR-Lite reads them."""
     from rapidocr.utils.process_img import get_rotate_crop_image
     det = paddle_v6._get()(img, use_cls=False, use_rec=False)
     if det.boxes is None or not len(det.boxes):
@@ -84,5 +85,5 @@ def read(img) -> list[Segment]:
         if seg:
             lines.append(((y2 - y1) > 1.5 * (x2 - x1), x2, seg))
     horiz = [s for v, _, s in lines if not v]
-    vert = [s for _, _, s in sorted((l for l in lines if l[0]), key=lambda l: -l[1])]
+    vert = [s for _, _, s in sorted((ln for ln in lines if ln[0]), key=lambda ln: -ln[1])]
     return horiz + vert

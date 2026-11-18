@@ -39,6 +39,7 @@ raw = root / "raw"
 
 
 def photos() -> None:
+    """Save the fixed random sample of whole JaWildText photos and their reference lines."""
     table = pq.read_table(raw / "board_vqa" / "train-00005-of-00006.parquet", columns=["image_id", "polygons", "image"])
     rows = table.to_pylist()
     picked = sorted(random.Random(SEED).sample(range(len(rows)), min(N_PHOTOS, len(rows))))
@@ -62,6 +63,7 @@ def photos() -> None:
 
 
 def lines() -> None:
+    """Save the fixed random sample of single JaWildText text lines and their references."""
     samples: dict[str, dict[str, bytes]] = {}
     with tarfile.open(raw / "data" / "shard-00000.tar") as tar:
         for m in tar.getmembers():

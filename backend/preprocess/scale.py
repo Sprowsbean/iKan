@@ -35,6 +35,7 @@ WEAK_BELOW = 0.8
 
 
 def mean_conf(segs) -> float:
+    """Average recognizer confidence over the Japanese characters read (0 if none)."""
     cs = [c["conf"] for c in _jp_chars(segs)]
     return sum(cs) / len(cs) if cs else 0.0
 

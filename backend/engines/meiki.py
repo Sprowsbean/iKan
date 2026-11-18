@@ -138,7 +138,7 @@ def _read_vertical(img, box) -> dict:
 
 def _jp_conf(lines: list[dict]) -> float:
     """Mean recognizer confidence on the Japanese chars of a pass. Sideways text reads as low-confidence junk."""
-    cs = [c["conf"] for l in lines for c in l["chars"] if JP.match(c["char"])]
+    cs = [c["conf"] for ln in lines for c in ln["chars"] if JP.match(c["char"])]
     return sum(cs) / len(cs) if len(cs) >= 3 else 0.0  # 1-2 chars: too little to judge (junk like 万工)
 
 
@@ -147,8 +147,10 @@ def _ocr_pass(img) -> tuple[list[list[dict]], float]:
     h, w = img.shape[:2]
     boxes = ocr.run_detection(img, DET_THRESHOLD)
     boxes = [b for b in boxes if not _is_slice(b, boxes)]
+
     # tall boxes are vertical columns (tategaki), read right to left
-    is_col = lambda b: b["bbox"][3] - b["bbox"][1] > 1.5 * (b["bbox"][2] - b["bbox"][0])
+    def is_col(b: dict) -> bool:
+        return b["bbox"][3] - b["bbox"][1] > 1.5 * (b["bbox"][2] - b["bbox"][0])
     cols = sorted((b for b in boxes if is_col(b)), key=lambda b: -b["bbox"][2])
     vlines = [r for r in (_read_vertical(img, b) for b in cols) if r["chars"]]
     boxes = [b for b in boxes if not is_col(b)]
@@ -159,7 +161,7 @@ def _ocr_pass(img) -> tuple[list[list[dict]], float]:
         padded.append({**b, "bbox": [max(0, x1 - p), max(0, y1 - p), min(w, x2 + p), min(h, y2 + p)]})
     # read every box tight and padded, keep whichever the recognizer is more confident about
     best = [_pick(a, b) for a, b in zip(_ocr_boxes(img, boxes), _ocr_boxes(img, padded))] if boxes else []
-    segs = [s for l in best for s in _split_gaps(l)] + [l["chars"] for l in vlines]
+    segs = [s for ln in best for s in _split_gaps(ln)] + [ln["chars"] for ln in vlines]
     return segs, _jp_conf(best + vlines)
 
 

@@ -39,5 +39,6 @@ def angle(img) -> tuple[int, float]:
 
 
 def upright(img):
+    """The image turned upright if the classifier says it is rotated, else the same image."""
     k, _ = angle(img)
     return cv2.rotate(img, UNDO[k]) if k in UNDO else img

@@ -18,11 +18,13 @@ import run_eval as ev  # noqa: E402
 
 
 def make_reader(det: str, rec: str):
+    """A function image -> text, using RapidOCR with the given PP-OCRv6 model sizes."""
     from rapidocr import EngineType, LangRec, ModelType, OCRVersion, RapidOCR
     ort = {"EngineConfig.onnxruntime.intra_op_num_threads": 2, "EngineConfig.onnxruntime.inter_op_num_threads": 1}
     eng = RapidOCR(params={
         "Global.log_level": "warning",
-        "Det.engine_type": EngineType.ONNXRUNTIME, "Det.lang_type": LangRec.JAPAN,  # PP-OCRv6 models are multilingual; routing wants a language
+        # PP-OCRv6 models are multilingual; RapidOCR's model routing still wants a language
+        "Det.engine_type": EngineType.ONNXRUNTIME, "Det.lang_type": LangRec.JAPAN,
         "Det.ocr_version": OCRVersion.PPOCRV6, "Det.model_type": ModelType(det),
         "Rec.engine_type": EngineType.ONNXRUNTIME, "Rec.lang_type": LangRec.JAPAN,
         "Rec.ocr_version": OCRVersion.PPOCRV6, "Rec.model_type": ModelType(rec),
@@ -30,12 +32,14 @@ def make_reader(det: str, rec: str):
     })
 
     def read(img) -> str:
+        """BGR image -> the recognized lines joined by newlines."""
         out = eng(img)
         return "\n".join(out.txts) if out.txts else ""
     return read
 
 
 def main() -> None:
+    """Score raw PP-OCRv6 on the same sets as run_eval.py (command-line entry point)."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--label", required=True)
     ap.add_argument("--det", default="small")

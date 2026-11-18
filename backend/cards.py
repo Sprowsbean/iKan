@@ -1,5 +1,6 @@
 """Text lines -> kanji cards: SudachiPy splits words (with readings and dictionary forms), pykakasi gives romaji,
 jamdict gives meanings from JMdict and per-kanji readings and levels from KANJIDIC2."""
+import threading
 from functools import lru_cache
 
 import pykakasi
@@ -9,13 +10,22 @@ from sudachipy import dictionary, tokenizer as sudachi_tok
 from jp import KANJI, kata_to_hira
 
 kks = pykakasi.kakasi()
-jam = Jamdict()
 tok = dictionary.Dictionary().tokenizer()
 MODE = sudachi_tok.Tokenizer.SplitMode.C
 MODE_SHORT = sudachi_tok.Tokenizer.SplitMode.A  # splits compounds like 東京駅 -> 東京 + 駅
+_local = threading.local()
+
+
+def _jam() -> Jamdict:
+    """This thread's dictionary. jamdict keeps one SQLite connection open, and SQLite refuses a connection made
+    in another thread (the Gradio test page and the API serve requests on different threads)."""
+    if not hasattr(_local, "jam"):
+        _local.jam = Jamdict()
+    return _local.jam
 
 
 def romaji(kana: str) -> str:
+    """Kana -> Hepburn romaji (とうきょう -> toukyou)."""
     return "".join(x["hepburn"] for x in kks.convert(kana))
 
 
@@ -27,7 +37,7 @@ OLD_TO_N = {"4": "N5-N4", "3": "N4-N3", "2": "N3-N2", "1": "N2-N1"}
 def _kanjidic(ch: str) -> tuple:
     """KANJIDIC2 records for one character, looked up once. jamdict's lookup() also fetches every character's
     record and the names dictionary by default; uncached, that took about 35 s of a 125-card scan."""
-    return tuple(x for x in jam.lookup(ch, lookup_ne=False).chars if x.literal == ch)
+    return tuple(x for x in _jam().lookup(ch, lookup_ne=False).chars if x.literal == ch)
 
 
 def kanji_info(word: str):
@@ -90,7 +100,8 @@ def char_cards(word: str, hira: str = "") -> list[dict]:
 
 @lru_cache(maxsize=8192)
 def glosses(word: str, hira: str = "", n_senses: int = 2) -> str:
-    entries = jam.lookup(word, lookup_chars=False, lookup_ne=False).entries  # JMdict words only
+    """The English meaning of a word from JMdict, preferring the entry with the given reading."""
+    entries = _jam().lookup(word, lookup_chars=False, lookup_ne=False).entries  # JMdict words only
     if not entries:
         return ""
     # 降る is both ふる (to fall) and くだる (to descend): prefer the entry matching the reading
@@ -99,6 +110,7 @@ def glosses(word: str, hira: str = "", n_senses: int = 2) -> str:
 
 
 def reading(text: str) -> str:
+    """The katakana reading of a text (SudachiPy; pykakasi for words Sudachi doesn't know)."""
     kana = "".join(m.reading_form() for m in tok.tokenize(text, MODE))
     # Sudachi echoes unknown words back unchanged (e.g. 做); pykakasi knows more single kanji
     if KANJI.search(kana):
@@ -108,6 +120,7 @@ def reading(text: str) -> str:
 
 def make_card(surface: str, base: str, line: str) -> dict:
     # show the dictionary form (食べた -> 食べる) so the card is a word you can look up
+    """One flashcard for a word found in a line: readings, romaji, meaning, level and context."""
     word = base if KANJI.search(base) else surface
     kana = reading(word)
     hira = kata_to_hira(kana)

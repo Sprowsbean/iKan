@@ -48,6 +48,7 @@ def _keep_alternates(rec) -> None:
     chars, blank = decode.character, set(decode.get_ignored_tokens())
 
     def wrapped(preds, return_word_box=False, **kw):
+        """RapidOCR's own decoding, plus the top-k runner-up characters at each position."""
         out = decode(preds, return_word_box, **kw)
         idx = preds.argmax(axis=2)
         for row, (text, _) in zip(range(len(idx)), out[0]):
@@ -59,7 +60,8 @@ def _keep_alternates(rec) -> None:
             per_char = []
             for f in np.flatnonzero(sel):
                 top = np.argsort(-preds[row, f])[:TOP_K + 1]
-                per_char.append([{"char": chars[i], "conf": float(preds[row, f, i])} for i in top if i not in blank][:TOP_K])
+                cands = [{"char": chars[i], "conf": float(preds[row, f, i])} for i in top if i not in blank]
+                per_char.append(cands[:TOP_K])
             _alts.append((text, per_char))
         return out
 
@@ -96,5 +98,5 @@ def read(img) -> list[Segment]:
         if seg:
             lines.append(((y2 - y1) > 1.5 * (x2 - x1), x1, x2, seg))
     horiz = [seg for vert, _, _, seg in lines if not vert]
-    vert = [seg for _, _, x2, seg in sorted((l for l in lines if l[0]), key=lambda l: -l[2])]
+    vert = [seg for _, _, x2, seg in sorted((ln for ln in lines if ln[0]), key=lambda ln: -ln[2])]
     return horiz + vert

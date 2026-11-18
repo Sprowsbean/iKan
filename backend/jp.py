@@ -11,4 +11,5 @@ SKIP = set("、・，, 　()（）「」")
 
 
 def kata_to_hira(s: str) -> str:
+    """Katakana -> hiragana; every other character is kept (トウキョウ -> とうきょう)."""
     return "".join(chr(ord(c) - 0x60) if "ァ" <= c <= "ヶ" else c for c in s)

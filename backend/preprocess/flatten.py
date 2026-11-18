@@ -13,6 +13,7 @@ _session = None
 
 
 def flatten(img):
+    """Flatten a curved surface with UVDoc (model downloaded once); returns the unwarped image."""
     global _session
     if _session is None:
         import onnxruntime as ort
