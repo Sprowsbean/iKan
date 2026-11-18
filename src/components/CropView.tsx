@@ -71,7 +71,7 @@ export function CropView({ file, found, onConfirm, onBack, backLabel }: CropView
   const [mode, setMode] = useState<'page' | 'box'>(found?.doc ? 'page' : 'box');
   const [page, setPage] = useState<HTMLCanvasElement | null>(null);
   const [box, setBox] = useState<Box>(found?.text ?? FULL);
-  const [status, setStatus] = useState(found ? '' : 'Looking for the page or text…');
+  const [status, setStatus] = useState(found || getScanMode() === 'photo' ? '' : 'Looking for the page or text…');
   const [busy, setBusy] = useState(false);
   const imgRef = useRef<HTMLImageElement>(null);
   const pageRef = useRef<HTMLDivElement>(null);
@@ -88,9 +88,12 @@ export function CropView({ file, found, onConfirm, onBack, backLabel }: CropView
     const img = imgRef.current;
     if (!img) return;
     let corners = doc;
+    if (!found && getScanMode() === 'photo') { // Photo mode: the whole picture stays selected
+      setStatus('');
+      return;
+    }
     if (!found) { // upload: look for a page, else for text, once (Scan works meanwhile, on the whole photo)
-      // "Text" mode (a screenshot, a sign, a poster): never take a bright rectangle for a page
-      corners = getScanMode() === 'text' ? null : await findDocument(img);
+      corners = await findDocument(img);
       if (touched.current) { setStatus(''); return; }
       if (corners) { setDoc(corners); setMode('page'); }
       else {
@@ -170,7 +173,9 @@ export function CropView({ file, found, onConfirm, onBack, backLabel }: CropView
     <div className="fixed inset-0 bg-black z-50 flex flex-col select-none">
       <div className="px-4 pt-4 pb-2 text-center">
         <p className="text-white text-base">
-          {status || (showPage ? 'Page found and straightened' : 'Drag the corners around the Japanese text')}
+          {status || (showPage ? 'Page found and straightened'
+                      : isFull ? 'Whole photo: tap Scan, or drag the corners to pick a part'
+                      : 'Drag the corners around the Japanese text')}
         </p>
         <p className="text-gray-400 text-sm">
           {showPage ? 'Scan it, or adjust the box yourself' : "Drag inside the box to move it. Only what's inside is scanned."}

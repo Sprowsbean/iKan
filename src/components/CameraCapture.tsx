@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { X, Circle, FileText, Type } from 'lucide-react';
+import { X, Circle, FileText, Image as ImageIcon } from 'lucide-react';
 import { findDocument, findTextBox } from '../services/scanner';
 import { getScanMode, setScanMode } from '../services/scanMode';
 import type { ScanMode } from '../services/scanMode';
@@ -60,12 +60,12 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const [mode, setMode] = useState<ScanMode>(getScanMode);
   const modeRef = useRef(mode); // read by the detection timers
   const toggleMode = () => {
-    const next: ScanMode = mode === 'auto' ? 'text' : 'auto';
+    const next: ScanMode = mode === 'auto' ? 'photo' : 'auto';
     modeRef.current = next;
     setMode(next);
     setScanMode(next);
-    if (next === 'text') {
-      foundRef.current = { ...foundRef.current, doc: null };
+    if (next === 'photo') { // nothing is framed: the whole picture goes to the OCR
+      foundRef.current = { doc: null, text: null };
       setFound(foundRef.current);
     }
   };
@@ -114,7 +114,8 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   // gets a box. Each detector runs only when its previous run has finished, so a slow phone never piles up.
   useEffect(() => {
     let stopped = false, docMiss = 0, textMiss = 0, docBusy = false, textBusy = false;
-    const textOnly = () => modeRef.current === 'text'; // a function: the mode can change while a frame is checked
+    // a function, not a value: the mode can change while a frame is being checked
+    const wholePhoto = () => modeRef.current === 'photo';
     const update = (next: Partial<Found>) => {
       foundRef.current = { ...foundRef.current, ...next };
       setFound(foundRef.current);
@@ -130,20 +131,21 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
     };
     const docTimer = setInterval(async () => {
       const v = ready();
-      if (!v || docBusy || textOnly()) return;
+      if (!v || docBusy || wholePhoto()) return;
       docBusy = true;
       const doc = await findDocument(v);
       docBusy = false;
-      if (stopped || textOnly()) return; // switched to text while this frame was checked
+      if (stopped || wholePhoto()) return; // switched to Photo while this frame was checked
       if (doc) { docMiss = 0; update({ doc }); } else if (++docMiss >= LOST_AFTER) update({ doc: null });
     }, DOC_EVERY_MS);
     const textTimer = setInterval(async () => {
       const v = ready();
-      if (!v || textBusy || foundRef.current.doc) return; // a page outline wins; no need for the text box
+      // a page outline wins (no need for the text box); Photo mode frames nothing
+      if (!v || textBusy || foundRef.current.doc || wholePhoto()) return;
       textBusy = true;
       const text = await findTextBox(v, v.videoWidth, v.videoHeight);
       textBusy = false;
-      if (stopped) return;
+      if (stopped || wholePhoto()) return;
       if (text) { textMiss = 0; update({ text }); } else if (++textMiss >= LOST_AFTER) update({ text: null });
     }, TEXT_EVERY_MS);
     return () => { stopped = true; clearInterval(docTimer); clearInterval(textTimer); };
@@ -201,7 +203,8 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
   const pts = d ? [d.topLeft, d.topRight, d.bottomRight, d.bottomLeft].map((p) => px(p.x, p.y)).join(' ')
                 : fr(found.text ?? GUIDE);
   const small = !d && found.text?.charPx !== undefined && found.text.charPx < SMALL_TEXT_PX;
-  const hint = d ? 'Page found: hold still and tap the button'
+  const hint = mode === 'photo' ? 'Whole photo: all the text in view will be read'
+             : d ? 'Page found: hold still and tap the button'
              : small ? 'The text is small: move closer for a better read'
              : found.text ? 'Text found: tap the button, you can adjust the box next'
              : 'Center the text you want to scan';
@@ -222,14 +225,14 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
               className="w-full h-full object-cover"
             />
             <svg className="absolute inset-0 w-full h-full pointer-events-none">
-              <polygon
+              {mode === 'auto' && <polygon
                 points={pts}
                 fill={d || found.text ? 'rgba(250,204,21,0.18)' : 'none'}
                 stroke={d || found.text ? '#facc15' : 'rgba(255,255,255,0.8)'}
                 strokeWidth={3}
                 strokeDasharray={d || found.text ? undefined : '10 8'}
                 strokeLinejoin="round"
-              />
+              />}
             </svg>
             <div className="absolute top-4 inset-x-0 flex flex-col items-center gap-2 px-4">
               <p className="text-center text-white text-sm drop-shadow">{hint}</p>
@@ -261,11 +264,11 @@ export function CameraCapture({ onCapture, onClose }: CameraCaptureProps) {
         <button
           onClick={toggleMode}
           className="w-16 flex flex-col items-center gap-1 py-2 bg-gray-800 hover:bg-gray-700 rounded-2xl text-white transition-colors"
-          aria-label={mode === 'auto' ? 'Finding pages and text. Tap to find text only (screens, signs)'
-                                      : 'Finding text only. Tap to also find pages'}
+          aria-label={mode === 'auto' ? 'Auto: finds the page or the text. Tap to read the whole photo instead'
+                                      : 'Photo: reads the whole photo. Tap to find the page or text again'}
         >
-          {mode === 'auto' ? <FileText className="w-5 h-5" /> : <Type className="w-5 h-5" />}
-          <span className="text-xs">{mode === 'auto' ? 'Auto' : 'Text'}</span>
+          {mode === 'auto' ? <FileText className="w-5 h-5" /> : <ImageIcon className="w-5 h-5" />}
+          <span className="text-xs">{mode === 'auto' ? 'Auto' : 'Photo'}</span>
         </button>
       </div>
     </div>

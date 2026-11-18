@@ -1,13 +1,17 @@
-// Whether the scanner looks for pages (scanic) or only for text. "auto": a page gets its outline, otherwise the
-// text near the centre gets a box. "text": never look for a page; a screen, sign or poster is a bright
-// rectangle that the page detector can mistake for a document. Remembered on this device only.
-export type ScanMode = 'auto' | 'text';
+// How the scanner frames the text.
+// - "auto": like the iPhone scanner. scanic finds a page and straightens it; with no page, a box goes around the
+//   text near the centre.
+// - "photo": no page finder and no box. The whole picture is sent and the OCR finds the text anywhere in it
+//   (a screen, a sign, a poster: a bright rectangle the page finder could take for a document).
+// Remembered on this device only.
+export type ScanMode = 'auto' | 'photo';
 
 const KEY = 'ikan.scanMode';
 
 export function getScanMode(): ScanMode {
   try {
-    return localStorage.getItem(KEY) === 'text' ? 'text' : 'auto';
+    const v = localStorage.getItem(KEY);
+    return v === 'photo' || v === 'text' ? 'photo' : 'auto'; // "text" was this mode's first name
   } catch {
     return 'auto'; // private mode / blocked storage: the default
   }
